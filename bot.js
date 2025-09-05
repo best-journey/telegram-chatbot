@@ -2,8 +2,6 @@ const TelegramBot = require('node-telegram-bot-api');
 const OpenAI = require('openai');
 const winston = require('winston');
 require('dotenv').config();
-
-// Configure logger
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
@@ -18,8 +16,6 @@ const logger = winston.createLogger({
     new winston.transports.File({ filename: 'bot.log' })
   ]
 });
-
-// Validate environment variables
 const requiredEnvVars = ['TELEGRAM_BOT_TOKEN', 'OPENAI_API_KEY'];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
@@ -27,40 +23,27 @@ for (const envVar of requiredEnvVars) {
     process.exit(1);
   }
 }
-
-// Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-
-// Initialize Telegram Bot
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
-
-// Rate limiting storage
-const userRequests = new Map();
-const RATE_LIMIT_WINDOW = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60000; // 1 minute
-const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10; // 10 requests per minute
+const RATE_LIMIT_WINDOW = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60000; 
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10; 
 const MAX_MESSAGE_LENGTH = parseInt(process.env.MAX_MESSAGE_LENGTH) || 4000;
-
-// Rate limiting function
 function checkRateLimit(userId) {
   const now = Date.now();
   const userRequests = getUserRequests(userId);
   
-  // Remove old requests outside the window
   const validRequests = userRequests.filter(time => now - time < RATE_LIMIT_WINDOW);
   
   if (validRequests.length >= RATE_LIMIT_MAX) {
     return false;
   }
   
-  // Add current request
   validRequests.push(now);
   setUserRequests(userId, validRequests);
   return true;
 }
-
-// Simple in-memory storage for rate limiting
 const rateLimitStorage = new Map();
 
 function getUserRequests(userId) {
@@ -70,8 +53,6 @@ function getUserRequests(userId) {
 function setUserRequests(userId, requests) {
   rateLimitStorage.set(userId, requests);
 }
-
-// Welcome message
 const WELCOME_MESSAGE = `🤖 Welcome to ${process.env.BOT_NAME || 'OpenAI Assistant Bot'}!
 
 I'm here to help you with any questions or conversations you'd like to have. I'm powered by OpenAI's advanced AI technology.
@@ -107,8 +88,6 @@ Tips:
 • If you encounter any issues, please try again later
 
 Need more help? Just ask me anything!`;
-
-// Error messages
 const ERROR_MESSAGES = {
   RATE_LIMIT: '⏰ You\'re sending messages too quickly. Please wait a moment before trying again.',
   API_ERROR: '❌ Sorry, I encountered an error processing your request. Please try again later.',
@@ -116,8 +95,6 @@ const ERROR_MESSAGES = {
   INVALID_INPUT: '❌ I couldn\'t process your message. Please try rephrasing it.',
   OPENAI_ERROR: '❌ I\'m having trouble connecting to the AI service. Please try again later.'
 };
-
-// Handle /start command
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   logger.info(`User ${msg.from.id} started the bot`);
@@ -128,8 +105,6 @@ bot.onText(/\/start/, (msg) => {
     logger.error('Error sending start message:', error);
   });
 });
-
-// Handle /help command
 bot.onText(/\/help/, (msg) => {
   const chatId = msg.chat.id;
   logger.info(`User ${msg.from.id} requested help`);
@@ -140,10 +115,7 @@ bot.onText(/\/help/, (msg) => {
     logger.error('Error sending help message:', error);
   });
 });
-
-// Handle all other messages
 bot.on('message', async (msg) => {
-  // Skip if it's a command (already handled above)
   if (msg.text && msg.text.startsWith('/')) {
     return;
   }
@@ -152,33 +124,28 @@ bot.on('message', async (msg) => {
   const userId = msg.from.id;
   const messageText = msg.text;
   
-  // Skip if no text content
   if (!messageText) {
     return;
   }
   
   logger.info(`Received message from user ${userId}: ${messageText.substring(0, 100)}...`);
   
-  // Check message length
   if (messageText.length > MAX_MESSAGE_LENGTH) {
     bot.sendMessage(chatId, ERROR_MESSAGES.MESSAGE_TOO_LONG);
     return;
   }
   
-  // Check rate limit
   if (!checkRateLimit(userId)) {
     logger.warn(`Rate limit exceeded for user ${userId}`);
     bot.sendMessage(chatId, ERROR_MESSAGES.RATE_LIMIT);
     return;
   }
   
-  // Send typing indicator
   bot.sendChatAction(chatId, 'typing').catch(error => {
     logger.error('Error sending typing indicator:', error);
   });
   
   try {
-    // Call OpenAI API
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
@@ -201,7 +168,6 @@ bot.on('message', async (msg) => {
       throw new Error('Empty response from OpenAI');
     }
     
-    // Send response to user
     await bot.sendMessage(chatId, response, {
       parse_mode: 'HTML'
     });
@@ -226,8 +192,6 @@ bot.on('message', async (msg) => {
     });
   }
 });
-
-// Handle errors
 bot.on('error', (error) => {
   logger.error('Bot error:', error);
 });
@@ -235,8 +199,6 @@ bot.on('error', (error) => {
 bot.on('polling_error', (error) => {
   logger.error('Polling error:', error);
 });
-
-// Graceful shutdown
 process.on('SIGINT', () => {
   logger.info('Shutting down bot...');
   bot.stopPolling();
@@ -248,8 +210,6 @@ process.on('SIGTERM', () => {
   bot.stopPolling();
   process.exit(0);
 });
-
-// Log bot startup
 logger.info('Bot started successfully');
 logger.info(`Rate limit: ${RATE_LIMIT_MAX} requests per ${RATE_LIMIT_WINDOW}ms`);
 logger.info(`Max message length: ${MAX_MESSAGE_LENGTH} characters`);
