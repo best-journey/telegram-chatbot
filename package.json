@@ -1,0 +1,29 @@
+{
+  "name": "telegram-openai-bot",
+  "version": "1.0.0",
+  "description": "A Telegram bot integrated with OpenAI API",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js",
+    "setup": "node setup.js",
+    "test-setup": "node test-setup.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "openai",
+    "nodejs"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "node-telegram-bot-api": "^0.66.0",
+    "openai": "^5.19.1",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
